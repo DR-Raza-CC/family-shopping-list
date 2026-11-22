@@ -179,6 +179,7 @@ function splitSpoken(s){return String(s).split(/,|;|\n|\band then\b|\band\b|\bth
 
 /* ---------- products & prices ---------- */
 function prod(key){if(!S)return null;return S.products[key]||Object.values(S.products).find(p=>(p.aliases||[]).includes(key))||null}
+function needsTeach(it){const p=prod(it.key);return!p||!p.options.some(o=>Object.keys(o.prices||{}).length)}
 const hasP=v=>v!==undefined&&v!==null&&v!==''&&!isNaN(+v);
 function priceAt(item,shop){
   const p=prod(item.key);if(!p||!p.options.length)return null;
@@ -284,7 +285,7 @@ function authHtml(){
 /* list */
 function itemRow(it){
   const p=prod(it.key);
-  const info=p?esc(p.options[0].name):'<span class="warn">Not learned yet – I’ll ask you once</span>';
+  const info=(it.note?esc(it.note)+' · ':'')+(p&&!needsTeach(it)?esc(p.options[0].name):p?esc(p.options[0].name)+' · <span class="warn">add prices</span>':'<span class="warn">Not learned yet – I’ll ask you once</span>');
   return`<li><div class="grow"><b>${esc(it.text)}</b><small>${info}${it.by?' · '+esc(it.by):''}</small></div>
     <div class="qty"><button data-a="qty" data-id="${it.id}" data-d="-1">−</button><span style="min-width:22px;text-align:center">${it.qty}</span><button data-a="qty" data-id="${it.id}" data-d="1">+</button></div>
     <button class="ghost" data-a="teach" data-k="${esc(it.key)}" data-t="${esc(it.text)}" aria-label="Edit product">✎</button></li>`;
@@ -294,16 +295,15 @@ function sugHtml(){
   return`<h3 class="muted small" style="margin-top:4px">Need these again?</h3><div class="chips">${s.map(x=>`<button class="chip" data-a="sug" data-t="${esc(x.text)}">+ ${esc(x.text)} <small>${esc(x.why)}</small></button>`).join('')}</div>`;
 }
 function vList(){
-  const items=S.items.filter(i=>!i.done),untrained=items.filter(i=>!prod(i.key)).length;
+  const items=S.items.filter(i=>!i.done),untrained=items.filter(needsTeach).length;
   const voice=S.family.input!=='type';
   return`<header class="top"><div><h1>${esc(S.family.name)}</h1><p class="muted small">${items.length} item${items.length===1?'':'s'}${untrained?` · <span class="warn">${untrained} to learn</span>`:''}</p></div>
     ${S.plan?'<button class="ghost" data-a="go" data-v="shop">🛒 Shopping</button>':''}</header>
   <div class="addbar"><input id="addInput" placeholder="${voice?'Tap 🎤 or type – e.g. 2 milk, eggs':'e.g. 2 milk, eggs, bread'}" enterkeyhint="done" autocomplete="off">
-    ${voice?'<button class="mic" id="micBtn" data-a="mic" aria-label="Speak">🎤</button>':''}<button class="addbtn" data-a="add">Add</button></div>
+    ${voice?'<button class="mic" id="micBtn" data-a="mic" aria-label="Speak">🎤</button>':''}<button class="mic" style="background:#e7efeb;color:var(--brand)" data-a="magic" aria-label="Photo, recipe or meal plan">📷</button><button class="addbtn" data-a="add">Add</button></div>
   ${installBanner()}
   ${sugHtml()}
   ${items.length?`<ul class="list">${items.map(itemRow).join('')}</ul>
-    <p class="muted small" style="text-align:center;margin-top:8px">Swipe-free: use − to remove an item</p>
     <button class="primary big" data-a="go" data-v="compare">💷 Find the cheapest</button>`
   :`<div class="empty"><div class="big">🧺</div><p>Your list is empty.</p><p class="small">${voice?'Tap 🎤 and say “eggs, milk and bread”.':'Type a few items above.'}</p>
     ${mode==='local'&&!Object.keys(S.products).length?'<button class="secondary" style="margin-top:14px" data-a="sample">Try it with sample items</button>':''}</div>`}`;
@@ -325,7 +325,7 @@ function planCard(pl,best,saving){
 function vCompare(){
   const{cheap,ones,items}=buildPlans(),shops=S.family.shops;
   if(!items.length)return`<button class="ghost" data-a="go" data-v="list">‹ List</button><div class="empty"><p>Add some items first.</p></div>`;
-  const untrained=items.filter(i=>!prod(i.key));
+  const untrained=items.filter(needsTeach);
   const bestOne=ones.find(o=>!o.missing.length)||ones[0];
   const saving=bestOne&&!cheap.missing.length&&!bestOne.missing.length?bestOne.total-cheap.total:0;
   let html=`<button class="ghost" data-a="go" data-v="list">‹ List</button><h1 style="margin:6px 0 4px">Cheapest for your list</h1>
@@ -411,6 +411,7 @@ function vSettings(){
     <button class="secondary" data-a="tour">Show the tour</button></div></div>
   <div class="card"><h3>Your name</h3><div class="row"><input id="meName" value="${esc(me)}"><button class="secondary" data-a="saveMe">Save</button></div></div>
   <div class="card"><h3>Shops to compare</h3><div class="shopsel">${SHOPS.map(s=>`<button class="${S.family.shops.includes(s)?'on':''}" data-a="toggleShop" data-s="${esc(s)}">${shopDot(s)}${esc(s)}</button>`).join('')}</div></div>
+  <div class="card"><h3>Household size</h3><p class="small muted">Used to scale recipes and meal plans.</p><div class="row"><input id="hhSize" type="number" min="1" max="20" inputmode="numeric" value="${S.family.people||4}" style="width:90px"><button class="secondary" data-a="saveHH">Save</button></div></div>
   <div class="card"><h3>Adding items</h3><div class="seg"><button class="${S.family.input!=='type'?'on':''}" data-a="setInput" data-v="voice">🎤 Voice + typing</button><button class="${S.family.input==='type'?'on':''}" data-a="setInput" data-v="type">⌨️ Typing only</button></div></div>
   <div class="card"><h3>Prices</h3><p class="small muted">Right now the app uses the prices you enter when teaching it an item (use “Check ↗” to look them up). Automatic live prices will slot in here later, with a freshness badge per shop.</p>
     ${S.family.shops.map(sh=>{const ts=Object.values(S.products).map(p=>hasP(p.options[0]&&p.options[0].prices[sh])?p.updated:0).filter(Boolean);const t=ts.length?Math.min(...ts):0;
@@ -467,6 +468,7 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.service
 const TOUR=[
   ['🛒','Welcome to your family list','Everyone in the family adds to one shared list. You’ll see who added what.'],
   ['🎤','Just say it','Tap the mic and say “two milk, eggs and bread”. Or type, with commas between items.'],
+  ['📷','Snap it','Tap 📷 to photograph a pack, a recipe, or your weekly meal plan – I turn it into a list.'],
   ['⭐','Teach it once','The first time you add “bread”, tell it the exact one you buy and the swaps you’d accept. It remembers.'],
   ['💷','Find the cheapest','One tap compares Tesco, Asda, Sainsbury’s and Aldi – cheapest overall or all in one shop.'],
   ['✅','Tick as you shop','Tick things in the order you find them – the list learns your shop’s layout. Add vouchers in the Vouchers tab.']
@@ -481,16 +483,51 @@ function renderTour(){
     <button class="primary grow" data-a="${last?'tourEnd':'tourNext'}">${last?'Let’s go':'Next'}</button></div></div>`;
 }
 
+/* ---------- photo of an item / recipe / meal plan ---------- */
+let magic={kind:null,image:null,text:'',people:null,result:null};
+function people(){return magic.people||S.family.people||4}
+function openMagic(){
+  magic={kind:null,image:null,text:'',people:null,result:null};
+  $('#panel').innerHTML=`<div class="row"><h2 class="grow">Add from…</h2><button class="ghost" data-a="closeSheet">Close</button></div>
+  ${mode==='local'?'<p class="small warn">Photo reading works on the live app, not in this preview.</p>':''}
+  <button class="card" style="width:100%;text-align:left" data-a="magicKind" data-v="item"><b>📦 Photo of an item</b><p class="small muted">Snap the pack – I add it and remember the exact product.</p></button>
+  <button class="card" style="width:100%;text-align:left" data-a="magicKind" data-v="recipe"><b>📖 A recipe</b><p class="small muted">Photo of a cookbook page or screenshot – I list what to buy.</p></button>
+  <button class="card" style="width:100%;text-align:left" data-a="magicKind" data-v="plan"><b>🗓️ Weekly meal plan</b><p class="small muted">Type or photograph your plan – I combine the ingredients for the week.</p></button>`;
+  openSheet();
+}
+function renderMagicInput(){
+  const k=magic.kind,label={item:'Photo of an item',recipe:'A recipe',plan:'Weekly meal plan'}[k];
+  $('#panel').innerHTML=`<div class="row"><button class="ghost" data-a="magic">‹</button><h2 class="grow">${label}</h2><button class="ghost" data-a="closeSheet">Close</button></div>
+  ${k==='item'?'<p class="muted">Take a clear photo of the front of the pack.</p>':`<label>Cooking for</label><div class="row"><input id="mPeople" type="number" min="1" max="20" inputmode="numeric" value="${people()}" style="width:90px"><span class="muted">people</span></div>`}
+  ${k==='plan'?`<label>Your meals (or use a photo below)</label><textarea id="mText" rows="6" style="font:inherit;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px" placeholder="Mon – chicken biryani&#10;Tue – spaghetti bolognese&#10;Wed – fish and chips&#10;…">${esc(magic.text)}</textarea>`:''}
+  ${k==='recipe'?`<label>Paste the recipe (or use a photo below)</label><textarea id="mText" rows="4" style="font:inherit;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px" placeholder="Optional – paste ingredients or a recipe link’s text">${esc(magic.text)}</textarea>`:''}
+  ${magic.image?`<img src="${magic.image}" style="width:100%;max-height:220px;object-fit:contain;border-radius:12px;margin-top:10px;background:#fff">`:''}
+  <div class="row" style="margin-top:12px">
+    <label class="secondary grow" style="text-align:center;margin:0;color:var(--brand);font-size:16px;cursor:pointer">📷 ${magic.image?'Retake':'Take photo'}<input type="file" accept="image/*" ${k==='item'?'capture="environment"':''} data-a2="photo" hidden></label>
+    ${k!=='item'?`<label class="secondary grow" style="text-align:center;margin:0;color:var(--brand);font-size:16px;cursor:pointer">🖼️ Gallery<input type="file" accept="image/*" data-a2="photo" hidden></label>`:''}</div>
+  <button class="primary" style="width:100%;margin-top:12px" data-a="magicGo">${k==='item'?'Add this item':'Make my list'}</button>`;
+}
+function shrink(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();im.onload=()=>{const m=1280,r=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*r);c.height=Math.round(im.height*r);c.getContext('2d').drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);res(c.toDataURL('image/jpeg',0.82))};im.onerror=rej;im.src=u})}
+function renderMagicResult(){
+  const r=magic.result,n=r.items.filter(i=>i.on).length;
+  $('#panel').innerHTML=`<div class="row"><button class="ghost" data-a="magicBack">‹</button><h2 class="grow">${esc(r.title||'Here’s your list')}</h2><button class="ghost" data-a="closeSheet">Close</button></div>
+  <p class="small muted">Untick anything you already have.${r.items.some(i=>i.staple)?' Cupboard basics start unticked.':''}</p>
+  <ul class="list" style="margin-top:8px">${r.items.map((it,i)=>`<li data-a="magicTog" data-i="${i}" style="cursor:pointer"><button class="check" style="${it.on?'background:var(--good);border-color:var(--good)':''}">${it.on?'✓':''}</button>
+    <div class="grow"><b>${it.qty>1?it.qty+'× ':''}${esc(it.name)}</b><small>${esc([it.product,it.amount,it.for].filter(Boolean).join(' · '))}</small></div></li>`).join('')}</ul>
+  <button class="primary" style="width:100%;margin-top:12px" data-a="magicAdd" ${n?'':'disabled'}>Add ${n} item${n===1?'':'s'} to the list</button>`;
+}
+
 /* ---------- toast ---------- */
 let tT;
 function toast(msg,undo){const t=$('#toast');t.innerHTML=esc(msg)+(undo?' <button id="undoBtn">Undo</button>':'');t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),3500);if(undo)$('#undoBtn').onclick=()=>{undo();t.classList.remove('show')}}
 
 /* ---------- adding items ---------- */
-function addTexts(parts){
-  const add=parts.map(parseItem).filter(Boolean);if(!add.length)return;
+function addTexts(parts){addItems(parts.map(parseItem).filter(Boolean))}
+function addItems(add,teach){
+  if(!add.length)return;
   const now=Date.now(),by=me,newIds=[];
   const plan=add.map(a=>{const id=uid();return{...a,id}});
-  mutate(s=>{plan.forEach(a=>{const ex=s.items.find(i=>i.key===a.key&&!i.done);if(ex)ex.qty=Math.min(99,ex.qty+a.qty);else{s.items.push({id:a.id,text:a.text,key:a.key,qty:a.qty,by,at:now,done:false});newIds.push(a.id)}})});
+  mutate(s=>{plan.forEach(a=>{const ex=s.items.find(i=>i.key===a.key&&!i.done);if(ex){ex.qty=Math.min(99,ex.qty+a.qty);if(a.note&&!ex.note)ex.note=a.note}else{s.items.push({id:a.id,text:a.text,key:a.key,qty:a.qty,note:a.note||'',by,at:now,done:false});newIds.push(a.id)}});(teach||[]).forEach(t=>{if(!s.products[t.key]&&!Object.values(s.products).some(p=>(p.aliases||[]).includes(t.key)))s.products[t.key]=t})});
   toast('Added: '+add.map(a=>a.text).join(', '),()=>{const ids=plan.map(a=>a.id);mutate(s=>{s.items=s.items.filter(i=>!ids.includes(i.id))})});
 }
 
@@ -511,6 +548,30 @@ function startMic(){
 
 /* ---------- actions ---------- */
 const A={
+  magic(){openMagic()},
+  magicKind(d){magic.kind=d.v;renderMagicInput()},
+  magicBack(){renderMagicInput()},
+  magicTog(d){const it=magic.result.items[+d.i];it.on=!it.on;renderMagicResult()},
+  async magicGo(){
+    const t=$('#mText'),pp=$('#mPeople');if(t)magic.text=t.value;if(pp)magic.people=+pp.value||4;
+    if(!magic.image&&!magic.text.trim())return toast(magic.kind==='item'?'Take a photo first':'Add a photo or type your meals');
+    if(mode==='local')return toast('Photo reading works on the live app');
+    if(magic.people&&magic.people!==S.family.people){const np=magic.people;mutate(s=>{s.family.people=np})}
+    $('#panel').innerHTML=`<div class="empty"><div class="big">🧑‍🍳</div><p>${magic.kind==='item'?'Looking at your photo…':magic.kind==='recipe'?'Reading your recipe…':'Planning your week’s shop…'}</p><p class="small">This takes a few seconds.</p></div>`;
+    try{
+      const r=await api('ai',{method:'POST',body:{kind:magic.kind,image:magic.image,text:magic.text,people:people()}});
+      if(!r.ok){toast(r.data.error||'Couldn’t read that – try again');renderMagicInput();return}
+      r.data.items.forEach(i=>i.on=!i.staple);magic.result=r.data;
+      if(magic.kind==='item'&&r.data.items.length===1){A.magicAdd();return}
+      renderMagicResult();
+    }catch(e){toast('No connection – try again');renderMagicInput()}
+  },
+  magicAdd(){
+    const r=magic.result,on=r.items.filter(i=>i.on),src=r.title||({item:'photo',recipe:'recipe',plan:'meal plan'}[magic.kind]);
+    const add=on.map(i=>{const p=parseItem(i.name);if(!p)return null;p.qty=i.qty||1;p.note=[i.amount,i.for||(magic.kind==='recipe'?src:'')].filter(Boolean).join(' · ');return p}).filter(Boolean);
+    const teach=on.filter(i=>i.product).map(i=>{const k=keyOf(i.name);return{key:k,label:i.name,aliases:[],updated:Date.now(),options:[{id:uid(),name:i.product,size:i.size||'',unit:i.unit||'each',prices:{}}]}});
+    closeSheet();addItems(add,teach);
+  },
   async install(){
     if(installEvt){installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;if(r.outcome!=='accepted')toast('No problem – it’s in Settings any time');render();return}
     $('#panel').innerHTML=`<h2>Add to your home screen</h2><ol style="padding-left:20px;line-height:1.7"><li>Open this page in <b>Safari</b></li><li>Tap the <b>Share</b> button ⎋ at the bottom</li><li>Scroll and tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>
@@ -617,6 +678,7 @@ const A={
   delVoucher(d){mutate(s=>{s.vouchers=s.vouchers.filter(x=>x.id!==d.id)})},
   toggleShop(d){const sh=d.s;mutate(s=>{const has=s.family.shops.includes(sh);if(has&&s.family.shops.length===1)return;s.family.shops=has?s.family.shops.filter(x=>x!==sh):SHOPS.filter(x=>s.family.shops.includes(x)||x===sh)})},
   setInput(d){mutate(s=>{s.family.input=d.v})},
+  saveHH(){const n=Math.max(1,Math.min(20,+$('#hhSize').value||4));mutate(s=>{s.family.people=n});toast('Saved')},
   saveMe(){const n=$('#meName').value.trim();if(!n)return;const old=me;me=n;LS.set('fsl_me',me);mutate(s=>{s.members=s.members.filter(x=>x!==old);if(!s.members.includes(n))s.members.push(n)});toast('Saved')},
   async invite(){
     const msg=`Join our Family Shopping List 🛒\n${location.origin}${location.pathname}\nFamily code: ${LS.get('fsl_code')}\n(Ask me for the password)`;
@@ -644,7 +706,7 @@ document.addEventListener('input',e=>{
   if(t.dataset.r){reg[t.dataset.r]=t.value;return}
   if(draft&&t.dataset.o!=null){const o=draft.options[+t.dataset.o];if(t.dataset.f==='price')o.prices[t.dataset.s]=t.value.replace(/[£\s]/g,'');else o[t.dataset.f]=t.value}
 });
-document.addEventListener('change',e=>{const t=e.target;if(draft&&t.dataset.o!=null&&t.dataset.f==='unit')draft.options[+t.dataset.o].unit=t.value});
+document.addEventListener('change',async e=>{const t=e.target;if(t.dataset.a2==='photo'&&t.files&&t.files[0]){const tx=$('#mText'),pp=$('#mPeople');if(tx)magic.text=tx.value;if(pp)magic.people=+pp.value||4;try{magic.image=await shrink(t.files[0]);renderMagicInput();if(magic.kind==='item')A.magicGo()}catch(err){toast('Couldn’t open that photo')}return}if(draft&&t.dataset.o!=null&&t.dataset.f==='unit')draft.options[+t.dataset.o].unit=t.value});
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id==='addInput'){e.preventDefault();A.add()}});
 
 /* ---------- start ---------- */
