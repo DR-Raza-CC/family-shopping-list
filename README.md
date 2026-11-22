@@ -13,6 +13,7 @@ Without the backend (for example opened as a plain file), the app runs in **prev
 - Each family has a code and password. Families can't see each other's lists.
 - Each family's whole state is one KV record. Saves use version checks, so two people adding at the same moment won't overwrite each other.
 - `functions/api/[[path]].js` handles register, login, getting and saving state, and logout.
+- `sw.js` + `manifest.webmanifest` + `icon-*.png` make it installable; a 5-step tour runs on first use (Settings → Show the tour).
 
 ## Roadmap
 - Live price checker (a scheduled Worker) for each shop, with a freshness badge.

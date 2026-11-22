@@ -7,6 +7,9 @@
 <meta name="theme-color" content="#0e5a4b">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Shopping">
 <style>
 :root{--bg:#f4f6f3;--card:#fff;--ink:#16231f;--muted:#66756f;--line:#e3e8e4;--brand:#0e5a4b;--brand2:#13806a;--good:#13806a;--goodbg:#e4f4ee;--warn:#b3560b;--warnbg:#fff1e4;--r:16px}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -71,6 +74,10 @@ nav.tabs button span{font-size:22px}nav.tabs button.on{color:var(--brand);font-w
 .shopsel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .shopsel button{border:2px solid var(--line);background:#fff;border-radius:14px;padding:12px;text-align:left;font-weight:600}
 .shopsel button.on{border-color:var(--brand2);background:var(--goodbg)}
+.install{display:flex;gap:10px;align-items:center;background:#e4f4ee;border:1px solid #bfe3d6;border-radius:14px;padding:10px 12px;margin:0 0 10px}
+.install img{width:36px;height:36px;border-radius:9px}
+.tour{text-align:center}.tour .big{font-size:56px;margin:6px 0}.tour h2{font-size:21px;margin:6px 0}
+.dots{display:flex;gap:6px;justify-content:center;margin:14px 0}.dots i{width:8px;height:8px;border-radius:50%;background:#cfd8d3}.dots i.on{background:var(--brand);width:20px;border-radius:9px}
 .hero{text-align:center;padding:30px 0 10px}.hero .logo{font-size:56px}
 </style>
 </head>
@@ -241,6 +248,7 @@ function render(){
   const v={list:vList,compare:vCompare,shop:vShop,vouchers:vVouchers,settings:vSettings}[view]();
   $('#app').innerHTML=(mode==='local'?banner():'')+'<main>'+v+'</main>'+nav();
   const ni=$('#addInput');if(ni){ni.value=val;if(foc)ni.focus()}
+  if(!LS.get('fsl_tour_done')&&!$('#sheet').classList.contains('open')){LS.set('fsl_tour_done','1');setTimeout(showTour,300)}
 }
 const banner=()=>'<div class="banner">Preview – everything is saved on this phone only</div>';
 function nav(){
@@ -292,6 +300,7 @@ function vList(){
     ${S.plan?'<button class="ghost" data-a="go" data-v="shop">🛒 Shopping</button>':''}</header>
   <div class="addbar"><input id="addInput" placeholder="${voice?'Tap 🎤 or type – e.g. 2 milk, eggs':'e.g. 2 milk, eggs, bread'}" enterkeyhint="done" autocomplete="off">
     ${voice?'<button class="mic" id="micBtn" data-a="mic" aria-label="Speak">🎤</button>':''}<button class="addbtn" data-a="add">Add</button></div>
+  ${installBanner()}
   ${sugHtml()}
   ${items.length?`<ul class="list">${items.map(itemRow).join('')}</ul>
     <p class="muted small" style="text-align:center;margin-top:8px">Swipe-free: use − to remove an item</p>
@@ -397,6 +406,9 @@ function vSettings(){
   return`<h1 style="margin:6px 0 10px">Settings</h1>
   <div class="card"><h3>${esc(S.family.name)}</h3><p class="small muted">Family code: <b>${esc(LS.get('fsl_code')||'')}</b> · ${S.members.length} member${S.members.length===1?'':'s'}: ${S.members.map(esc).join(', ')}</p>
     <button class="secondary" style="margin-top:10px" data-a="invite">Invite family</button></div>
+  <div class="card"><h3>App</h3><div class="row wrap">
+    ${canInstall()?'<button class="primary" data-a="install">📲 Install app</button>':isStandalone()?'<span class="small good">✓ Installed on this phone</span>':''}
+    <button class="secondary" data-a="tour">Show the tour</button></div></div>
   <div class="card"><h3>Your name</h3><div class="row"><input id="meName" value="${esc(me)}"><button class="secondary" data-a="saveMe">Save</button></div></div>
   <div class="card"><h3>Shops to compare</h3><div class="shopsel">${SHOPS.map(s=>`<button class="${S.family.shops.includes(s)?'on':''}" data-a="toggleShop" data-s="${esc(s)}">${shopDot(s)}${esc(s)}</button>`).join('')}</div></div>
   <div class="card"><h3>Adding items</h3><div class="seg"><button class="${S.family.input!=='type'?'on':''}" data-a="setInput" data-v="voice">🎤 Voice + typing</button><button class="${S.family.input==='type'?'on':''}" data-a="setInput" data-v="type">⌨️ Typing only</button></div></div>
@@ -437,6 +449,38 @@ function openSheet(){$('#sheet').classList.add('open')}
 function closeSheet(){$('#sheet').classList.remove('open');draft=null}
 $('#sheet').addEventListener('click',e=>{if(e.target.id==='sheet')closeSheet()});
 
+/* ---------- install ---------- */
+let installEvt=null;
+const isStandalone=()=>window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isIOS=()=>/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installEvt=e;render()});
+window.addEventListener('appinstalled',()=>{installEvt=null;toast('Installed – find it on your home screen');render()});
+function canInstall(){return mode==='server'&&!isStandalone()&&(installEvt||isIOS())}
+function installBanner(){
+  if(!canInstall()||LS.get('fsl_install_hide'))return'';
+  return`<div class="install"><img src="icon-192.png" alt=""><div class="grow"><b>Install the app</b><p class="small muted">${installEvt?'Opens full screen, straight from your home screen.':'Tap Share ⎋ then “Add to Home Screen”.'}</p></div>
+    ${installEvt?'<button class="primary" style="padding:9px 12px" data-a="install">Install</button>':'<button class="ghost" data-a="install">How?</button>'}<button class="ghost" data-a="hideInstall" aria-label="Hide">✕</button></div>`;
+}
+if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('sw.js').catch(()=>{})}
+
+/* ---------- tour ---------- */
+const TOUR=[
+  ['🛒','Welcome to your family list','Everyone in the family adds to one shared list. You’ll see who added what.'],
+  ['🎤','Just say it','Tap the mic and say “two milk, eggs and bread”. Or type, with commas between items.'],
+  ['⭐','Teach it once','The first time you add “bread”, tell it the exact one you buy and the swaps you’d accept. It remembers.'],
+  ['💷','Find the cheapest','One tap compares Tesco, Asda, Sainsbury’s and Aldi – cheapest overall or all in one shop.'],
+  ['✅','Tick as you shop','Tick things in the order you find them – the list learns your shop’s layout. Add vouchers in the Vouchers tab.']
+];
+let tourStep=0;
+function showTour(){tourStep=0;renderTour();openSheet()}
+function renderTour(){
+  const[i,h,p]=TOUR[tourStep],last=tourStep===TOUR.length-1;
+  $('#panel').innerHTML=`<div class="tour"><div class="big">${i}</div><h2>${esc(h)}</h2><p class="muted">${esc(p)}</p>
+    <div class="dots">${TOUR.map((_,n)=>`<i class="${n===tourStep?'on':''}"></i>`).join('')}</div>
+    <div class="row">${tourStep?'<button class="secondary grow" data-a="tourBack">Back</button>':'<button class="ghost grow" data-a="tourEnd">Skip</button>'}
+    <button class="primary grow" data-a="${last?'tourEnd':'tourNext'}">${last?'Let’s go':'Next'}</button></div></div>`;
+}
+
 /* ---------- toast ---------- */
 let tT;
 function toast(msg,undo){const t=$('#toast');t.innerHTML=esc(msg)+(undo?' <button id="undoBtn">Undo</button>':'');t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),3500);if(undo)$('#undoBtn').onclick=()=>{undo();t.classList.remove('show')}}
@@ -467,6 +511,16 @@ function startMic(){
 
 /* ---------- actions ---------- */
 const A={
+  async install(){
+    if(installEvt){installEvt.prompt();const r=await installEvt.userChoice;installEvt=null;if(r.outcome!=='accepted')toast('No problem – it’s in Settings any time');render();return}
+    $('#panel').innerHTML=`<h2>Add to your home screen</h2><ol style="padding-left:20px;line-height:1.7"><li>Open this page in <b>Safari</b></li><li>Tap the <b>Share</b> button ⎋ at the bottom</li><li>Scroll and tap <b>Add to Home Screen</b></li><li>Tap <b>Add</b></li></ol>
+      <p class="small muted">On Android Chrome: tap ⋮ then <b>Add to Home screen</b> / <b>Install app</b>.</p><button class="primary" style="width:100%;margin-top:10px" data-a="closeSheet">Got it</button>`;openSheet();
+  },
+  hideInstall(){LS.set('fsl_install_hide','1');render()},
+  tour(){showTour()},
+  tourNext(){tourStep++;renderTour()},
+  tourBack(){tourStep--;renderTour()},
+  tourEnd(){LS.set('fsl_tour_done','1');closeSheet()},
   go(d){view=d.v;window.scrollTo(0,0);render()},
   auth(d){authView=d.v;render()},
   regShop(d){reg.shops=reg.shops.includes(d.s)?reg.shops.filter(x=>x!==d.s):[...reg.shops,d.s];render()},
